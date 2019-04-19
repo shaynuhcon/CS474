@@ -48,6 +48,7 @@ namespace CS474_Lab1
         // Question 7: Find largest number in array using parallel loop
         private static void FindLargestNumberParallel()
         {
+            var thisLock = new object();
             var stopwatch = new Stopwatch();
             stopwatch.Start();
 
@@ -55,6 +56,7 @@ namespace CS474_Lab1
             Parallel.For(0, _intArray.Length, i =>
             {
                 if (_intArray[i] > largestNumber) largestNumber = _intArray[i];
+
             });
 
             stopwatch.Stop();
@@ -66,10 +68,18 @@ namespace CS474_Lab1
         }
 
         // Question 10: Find largest number in array using parallel loop and partioning
-        private static void FindLargestNumberChunkedParallel(int coreCount, long chunkSize)
-        {
-            // Question 10: Use chunk size divided by core count 
-            var partitionSize = chunkSize / coreCount;
+        private static void FindLargestNumberChunkedParallel(long chunkSize)
+        {   
+            // Question 10: Get core count 
+            var coreCount = 0;
+            foreach (var item in new ManagementObjectSearcher("Select * from Win32_Processor").Get())
+                coreCount += int.Parse(item["NumberOfCores"].ToString());
+
+            // Question 10: Use chunk size divided by core count if chunk size is 20,000,000
+            if (chunkSize == 20000000)
+            {
+                chunkSize = chunkSize / coreCount;
+            }
 
             var stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -77,7 +87,7 @@ namespace CS474_Lab1
             var largestNumber = 0;
 
             // Create partitions in array for each size 
-            Parallel.ForEach(Partitioner.Create(0, _intArray.Length, partitionSize),
+            Parallel.ForEach(Partitioner.Create(0, _intArray.Length, chunkSize),
                 range =>
                 {
                     // Loop through partitioned part of array only
@@ -111,6 +121,7 @@ namespace CS474_Lab1
             // Initialize list for chunk sizes
             var chunkSizes = new List<long>
             {
+                1,
                 10,
                 100,
                 500,
@@ -134,15 +145,10 @@ namespace CS474_Lab1
 
                 // Question 10: Try partitioning/chunking for array size of 20,000,000
                 if (arraySize == 20000000)
-                {
-                    // Question 10: Get core count 
-                    var coreCount = 0;
-                    foreach (var item in new ManagementObjectSearcher("Select * from Win32_Processor").Get())
-                        coreCount += int.Parse(item["NumberOfCores"].ToString());
-
+                { 
                     foreach (var chunkSize in chunkSizes)
                     {
-                        FindLargestNumberChunkedParallel(coreCount, chunkSize);
+                        FindLargestNumberChunkedParallel(chunkSize);
                     }
                 }
 
