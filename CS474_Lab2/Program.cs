@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -69,6 +66,7 @@ namespace CS474_Lab2
         private static void ParallelSieve(long size)
         {
             var primeArray = new bool[size];
+            var stopwatch = new Stopwatch();
 
             // Get max 
             var limit = (int) Math.Ceiling(Math.Sqrt(size));
@@ -80,20 +78,17 @@ namespace CS474_Lab2
             });
 
             Mutex mLock = new Mutex();
-
+            var processorCount = Environment.ProcessorCount;
             long elapsedTime = 0;
-            var options = new ParallelOptions{MaxDegreeOfParallelism = 4};
-
+            
             // Sequential loop that tracks latest prime
             for (int latestPrime = 3; latestPrime < limit; latestPrime++)
             {
-   
                 if (primeArray[latestPrime])
                 {
-                    var stopwatch = new Stopwatch();
                     stopwatch.Start();
                     // Question 4: Loop needs to go from 2 to ceiling of square root of size
-                    Parallel.For(3, limit, options, j =>
+                    Parallel.For(3, processorCount, j =>
                     {
                         mLock.WaitOne();
                         // Knock out multiples of prime i
@@ -105,7 +100,6 @@ namespace CS474_Lab2
                     });
                     stopwatch.Stop();
                     elapsedTime += stopwatch.ElapsedMilliseconds;
-
                     stopwatch.Reset();
                 }
 
@@ -120,8 +114,7 @@ namespace CS474_Lab2
                 if (primeArray[i]) primeCount++;
                 mLock.ReleaseMutex();
             });
-
-
+            
             Console.WriteLine("Parallel: Found {0} prime numbers for array size {1}. Time: {2}ms", primeCount, size, elapsedTime);
         }
     }
