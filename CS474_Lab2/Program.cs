@@ -1,10 +1,15 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Management;
 using System.Threading;
 using System.Threading.Tasks;
+
+/**
+ * Name: Shayna Conner
+ * Date: 5/10/2019
+ * CS474 - Lab 2
+ * Lab was completed on a home desktop that has an i7-6700k processor
+ */
 
 namespace CS474_Lab2
 {
