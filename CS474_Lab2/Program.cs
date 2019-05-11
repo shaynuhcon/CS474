@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
@@ -28,7 +29,11 @@ namespace CS474_Lab2
 
         private static void SequentialSieve(long size)
         {
+            // Initialize array
             var primeArray = new bool[size];
+
+            // Get max 
+            var limit = (int)Math.Ceiling(Math.Sqrt(size));
 
             var stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -36,7 +41,7 @@ namespace CS474_Lab2
             // Set all to true
             for (int i = 2; i < size; i++) primeArray[i] = true;
 
-            for (int i = 2; i < size; i++)
+            for (int i = 2; i < limit; i++)
             {
                 // If index is prime
                 if (primeArray[i])
@@ -65,30 +70,33 @@ namespace CS474_Lab2
 
         private static void ParallelSieve(long size)
         {
+            // Initialize array
             var primeArray = new bool[size];
-            var stopwatch = new Stopwatch();
 
             // Get max 
             var limit = (int) Math.Ceiling(Math.Sqrt(size));
 
-            // Set all except 0 and 1 to true
+            // Set all exception 0, 1, and any multiples of 2 to true 
             Parallel.For(2, primeArray.Length, i =>
             {
                 if (i == 2 || i % 2 != 0) primeArray[i] = true;
             });
 
+            // Initialize lock and get processor count
             Mutex mLock = new Mutex();
             var processorCount = Environment.ProcessorCount;
-            long elapsedTime = 0;
-            
+
+            // Start timer
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
             // Sequential loop that tracks latest prime
             for (int latestPrime = 3; latestPrime < limit; latestPrime++)
             {
                 if (primeArray[latestPrime])
                 {
-                    stopwatch.Start();
-                    // Question 4: Loop needs to go from 2 to ceiling of square root of size
-                    Parallel.For(3, processorCount, j =>
+                    // Split up array between processor count / 2
+                    Parallel.For(3, processorCount /2, j =>
                     {
                         mLock.WaitOne();
                         // Knock out multiples of prime i
@@ -98,14 +106,17 @@ namespace CS474_Lab2
                         }
                         mLock.ReleaseMutex();
                     });
-                    stopwatch.Stop();
-                    elapsedTime += stopwatch.ElapsedMilliseconds;
-                    stopwatch.Reset();
+
                 }
 
             }
 
-            //Count
+            // End timer
+            stopwatch.Stop();
+            var elapsedTime = stopwatch.ElapsedMilliseconds;
+            stopwatch.Reset();
+
+            // Count number of primes
             var primeCount = 0;
 
             Parallel.For(0, primeArray.Length, i =>
@@ -115,6 +126,7 @@ namespace CS474_Lab2
                 mLock.ReleaseMutex();
             });
             
+
             Console.WriteLine("Parallel: Found {0} prime numbers for array size {1}. Time: {2}ms", primeCount, size, elapsedTime);
         }
     }
