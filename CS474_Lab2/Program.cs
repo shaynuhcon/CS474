@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Management;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -39,7 +40,7 @@ namespace CS474_Lab2
             stopwatch.Start();
 
             // Set all to true
-            for (int i = 2; i < size; i++) primeArray[i] = true;
+            for (int i = 2; i < size; i++) if (i == 2 || i % 2 != 0) primeArray[i] = true;
 
             for (int i = 2; i < limit; i++)
             {
@@ -84,6 +85,7 @@ namespace CS474_Lab2
 
             // Initialize lock and get processor count
             Mutex mLock = new Mutex();
+
             var processorCount = Environment.ProcessorCount;
 
             // Start timer
@@ -96,11 +98,11 @@ namespace CS474_Lab2
                 if (primeArray[latestPrime])
                 {
                     // Split up array between processor count / 2
-                    Parallel.For(3, processorCount /2, j =>
+                    Parallel.For(3, processorCount / 2, j =>
                     {
                         mLock.WaitOne();
                         // Knock out multiples of prime i
-                        for (int k = latestPrime * 2; k < size; k += latestPrime)
+                        for (int k = latestPrime * latestPrime; k < size; k += latestPrime)
                         {
                             primeArray[k] = false;
                         }
@@ -125,7 +127,7 @@ namespace CS474_Lab2
                 if (primeArray[i]) primeCount++;
                 mLock.ReleaseMutex();
             });
-            
+
 
             Console.WriteLine("Parallel: Found {0} prime numbers for array size {1}. Time: {2}ms", primeCount, size, elapsedTime);
         }
