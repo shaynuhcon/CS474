@@ -108,26 +108,35 @@ namespace CS474_Lab2
                         }
                         mLock.ReleaseMutex();
                     });
+                }
+            }
+            
+            // Count number of primes with chunking
+            var primeCount = 0;
 
+            // Set chunk for parallel prime count
+            var chunk = primeArray.Length / processorCount;
+
+            // Count primes in primeArray in chunks
+            Parallel.For(0, primeArray.Length / chunk, j =>
+            {
+                int start = j * chunk; 
+                int end = (j + 1) * chunk; 
+
+                mLock.WaitOne();
+
+                for (int i = start; i < end; i++)
+                {
+                    if (primeArray[i]) primeCount++;
                 }
 
-            }
+                mLock.ReleaseMutex();
+            });
 
             // End timer
             stopwatch.Stop();
             var elapsedTime = stopwatch.ElapsedMilliseconds;
             stopwatch.Reset();
-
-            // Count number of primes
-            var primeCount = 0;
-
-            Parallel.For(0, primeArray.Length, i =>
-            {
-                mLock.WaitOne();
-                if (primeArray[i]) primeCount++;
-                mLock.ReleaseMutex();
-            });
-
 
             Console.WriteLine("Parallel: Found {0} prime numbers for array size {1}. Time: {2}ms", primeCount, size, elapsedTime);
         }
