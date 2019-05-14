@@ -12,36 +12,42 @@ namespace CS474_ExtraCredit
 {
     class Program
     {
+        // Global, readonly variables
         private static readonly Mutex LockObject = new Mutex();
-        private static readonly int CoreCount = Environment.ProcessorCount;
-        private static readonly int _size = 1000000000;
-
+        private static readonly int CoreCount = 4;
+        private static readonly double _size = 1000000000;
+        
         static void Main(string[] args)
         {
-            double x, y;
+            // Initialize variables
             var array = new int[CoreCount];
-            int nCountIn = _size * 4;
+            double nCountIn = 0;
 
+            // Parallel body that counts number of pairs with distance less than 1
             Parallel.For(0, CoreCount, i =>
             {
+                Random rand = new Random();
+
                 for (int j = 0; j < _size / CoreCount; j++)
                 {
-                    Random rand = new Random();
+                    double x = rand.NextDouble();
+                    double y = rand.NextDouble();
 
-                    x = rand.NextDouble();
-                    y = rand.NextDouble();
-                    if (x * x + y * y >= 1)
+                    if (Math.Sqrt(x * x + y * y) <= 1)
                     {
                         array[i]++;
                     }
-
-                    LockObject.WaitOne();
-                    nCountIn -= array[i];
-                    LockObject.ReleaseMutex();
                 }
+                
+                // Lock count variable 
+                LockObject.WaitOne();
+                nCountIn += array[i];
+                LockObject.ReleaseMutex();
             });
 
-            Console.WriteLine(nCountIn * 1.0 / _size);
+            // Get approximation of pi and print
+            var pi = (nCountIn / _size) * 4;
+            Console.WriteLine(pi);
             Console.ReadLine();
         }
     }
