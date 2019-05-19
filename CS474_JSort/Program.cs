@@ -63,12 +63,12 @@ namespace CS474_JSort
 
             // Initialize temporary arrays
             int[] temp = new int[array.Length];
-            int[] nSmallerEqual = new int[chunk];
-            int[] nGreaterThan = new int[chunk];
+            int[] nSmallerEqual = new int[_processorCount];
+            int[] nGreaterThan = new int[_processorCount];
 
             // Set thread safe variables for unique ID 
             var queue = new ConcurrentQueue<int>();
-            for (int i = 0; i <= chunk - 1; i++)
+            for (int i = 0; i < _processorCount; i++)
             {
                 queue.Enqueue(i);
             }
