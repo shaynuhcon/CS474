@@ -53,11 +53,6 @@ namespace CS474_JSort
          */
         private static int DoPartition(int[] array, int startIndex, int endIndex)
         {
-            // Use median of three to get pivot, commented out for now 
-            //int middle = (startIndex + endIndex) / 2;
-            //int median = (startIndex + endIndex + middle) / 3;
-            //int pivot = array[median];
-
             // Set pivot to a[5] as stated in Jie's paper
             int pivot = array[5];
 
@@ -81,10 +76,6 @@ namespace CS474_JSort
             // Divide array into chunks
             Parallel.For(0, _processorCount, j =>
             {
-                // Unique ID variable used to identify each processor
-                int uniqueId;
-                queue.TryDequeue(out uniqueId);
-
                 // Starting and ending point of chunk
                 int start = j * chunk; 
                 int end = ((j + 1) * chunk) - 1;
@@ -113,6 +104,10 @@ namespace CS474_JSort
                         greater--;
                     }
                 }
+
+                // Unique ID variable used to identify each processor
+                int uniqueId;
+                queue.TryDequeue(out uniqueId);
 
                 mLock.WaitOne();
                 nSmallerEqual[uniqueId] = lesser - start; // # elements smaller than pivot 
