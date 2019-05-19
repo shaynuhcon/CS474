@@ -79,7 +79,7 @@ namespace CS474_JSort
             }
 
             // Divide array into chunks
-            Parallel.For(0, array.Length / _processorCount, j =>
+            Parallel.For(0, _processorCount, j =>
             {
                 // Unique ID variable used to identify each processor
                 int uniqueId;
@@ -87,14 +87,14 @@ namespace CS474_JSort
 
                 // Starting and ending point of chunk
                 int start = j * chunk; 
-                int end = (j + 1) * chunk;
+                int end = ((j + 1) * chunk) - 1;
 
                 // Counter variables initialized with above start/end variables
                 int lesser = start;
                 int greater = end;
                 
                 // Check for less than or equal to and greater than pivot 
-                for (int i = start; i < end; i++)
+                for (int i = start; i <= end; i++)
                 {
                     if (array[i] <= pivot)
                     {
