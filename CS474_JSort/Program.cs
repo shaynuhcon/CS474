@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,7 +10,7 @@ namespace CS474_JSort
     {
         // Global processor count set to 4 for now to match example in Jie's paper
         private static int _processorCount = 4;
-        private static int[] _array = new[]{5, 17, 42, 3, 32, 22, 51, 26, 15, 9, 19, 99};
+        private static int[] _array = new[]{5, 17, 42, 3, 9, 22, 15, 26, 51, 19, 99, 32};
         private static int _size = _array.Length;
 
         static void Main(string[] args)
@@ -21,26 +22,26 @@ namespace CS474_JSort
             Console.WriteLine("Original array:");
             PrintArray();
 
-            DoSort(startIndex, endIndex);
+            int middle = (startIndex + endIndex) / 2;
+            int median = (startIndex + endIndex + middle) / 3;
+            int pivot = _array[median];
+            DoSort(startIndex, endIndex, pivot);
         }
         
         /*
          * Recursive method that checks when sorting/partitioning will be done 
          */
-        private static void DoSort(int start, int end)
+        private static void DoSort(int startIndex, int endIndex, int pivot)
         {
-            // Set pivot to a[5] as stated in Jie's paper
-            int pivot = _array[5];
-
-            if (start < end)
+            if (startIndex < endIndex)
             {
-                int partitionIndex = DoPartition(start, end, pivot);
+                int partitionIndex = DoPartition(startIndex, endIndex, pivot);
 
                 if (partitionIndex > 1)
-                    DoSort(start, partitionIndex - 1);
+                    DoSort(startIndex, partitionIndex, pivot);
 
-                if (partitionIndex + 1 < end)
-                    DoSort(partitionIndex + 1, end);
+                if (partitionIndex + 1 < endIndex)
+                    DoSort(partitionIndex + 1, endIndex, pivot);
             }
         }
 
@@ -56,6 +57,11 @@ namespace CS474_JSort
 
             // Initialize temporary arrays
             int[] temp = new int[_size];
+
+            for (int i = 0; i < _size; i++)
+            {
+                temp[i] = _array[i];
+            }
             int[] nSmallerEqual = new int[_processorCount];
             int[] nGreaterThan = new int[_processorCount];
 
@@ -86,22 +92,8 @@ namespace CS474_JSort
                 // Check for less than or equal to and greater than pivot 
                 for (int i = startIndex; i <= endIndex; i++)
                 {
-                    if (_array[i] <= pivot)
-                    {
-                        mLock.WaitOne();
-                        temp[lesser] = _array[i];
-                        mLock.ReleaseMutex();
-
-                        lesser++;
-                    }
-                    else
-                    {
-                        mLock.WaitOne();
-                        temp[greater] = _array[i];
-                        mLock.ReleaseMutex();
-
-                        greater--;
-                    }
+                    if (_array[i] <= pivot) lesser++;
+                    else greater--;
                 }
 
                 mLock.WaitOne();
@@ -109,48 +101,51 @@ namespace CS474_JSort
                 nGreaterThan[uniqueId] = endIndex - greater; // # elements greater than pivot 
                 mLock.ReleaseMutex();
 
-                // Calculate prefix sums
-                int smallerThanCount = 0;
-                int greaterThanCount = 0;
-
-                //for (int i = 0; i <= uniqueId; i++)
+                // Calculate prefix sums on arrays
+                //for (int k = 0; k <= uniqueId; k++)
                 //{
-                //    smallerThanCount += nSmallerEqual[i];      // calculate the offset of 1st smaller than pivot element 
-                //    greaterThanCount += nGreaterThan[i];      // calculate offset of first greater than pivot element 
-                //    //Console.WriteLine("ID: {0}. Prefix sum calculation. i = {1}, smallerThanCount = {2}, greaterThanCount = {3}", uniqueId, i, smallerThanCount, greaterThanCount);
+                //    int whateverThisIs = (int)(uniqueId - Math.Pow(2, k));
+                //    if (whateverThisIs >= 0)
+                //    {
+                //        mLock.WaitOne();
+                //        nSmallerEqual[uniqueId] = nSmallerEqual[whateverThisIs] + nSmallerEqual[uniqueId];
+                //        mLock.ReleaseMutex();
+
+                //        mLock.WaitOne();
+                //        nGreaterThan[uniqueId] = nGreaterThan[whateverThisIs] + nGreaterThan[uniqueId];
+                //        mLock.ReleaseMutex();
+                //    }
                 //}
 
+                // These values hold total count for lesser than or greater than values
+                // Will be used for inserting values back to original array 
+                int smallerThanCount = 0;
+                int greaterThanCount = 0;
+                mLock.WaitOne();
 
-                ////Calculate prefix sums on arrays
-                for (int k = 0; k <= uniqueId; k++)
+                for (int i = 0; i < uniqueId; i++)
                 {
-                    int whateverThisIs = (int)(uniqueId - Math.Pow(2, k));
-                    if (whateverThisIs >= 0)
-                    {
-                        mLock.WaitOne();
-                        nSmallerEqual[uniqueId] = nSmallerEqual[whateverThisIs] + nSmallerEqual[uniqueId];
-                        nGreaterThan[uniqueId] = nGreaterThan[whateverThisIs] + nGreaterThan[uniqueId];
-                       // Console.WriteLine("ID: {0}. Prefix sum calculation. i = {1}, smallerThanCount = {2}, greaterThanCount = {3}", uniqueId, k, nSmallerEqual[uniqueId], nGreaterThan[uniqueId]);
 
-                        mLock.ReleaseMutex();
-                    }
+                    smallerThanCount += nSmallerEqual[i];      // calculate the offset of 1st smaller than pivot element 
+                    greaterThanCount += nGreaterThan[i];      // calculate offset of first greater than pivot element 
                 }
+                mLock.ReleaseMutex();
 
-                ////Determine starting points for each processor to copy elements <= pivot and > pivot
-                if (uniqueId != 0)
-                {
-                    smallerThanCount = nSmallerEqual[uniqueId - 1];
-                    greaterThanCount = nGreaterThan[uniqueId - 1];
-                    //Console.WriteLine("ID: {0}. New prefix sum values.smallerThanCount = {1}, greaterThanCount = {2}", uniqueId, smallerThanCount, greaterThanCount);
+                Console.WriteLine("ID: {0}. SmallerEqual: {1}. GreaterThan {2}", uniqueId, smallerThanCount, greaterThanCount);
 
-                }
-                else
-                {
-                    smallerThanCount = 0;
-                    greaterThanCount = 0;
-                }
 
-                Console.WriteLine("ID: {0}, Start: {1}, End: {2}, SmallerOrEqual: {3}, GreaterThan: {4}, SmallerThanCount: {5}, GreaterThanCount: {6}", uniqueId, startIndex, endIndex, nSmallerEqual[uniqueId], nGreaterThan[uniqueId], smallerThanCount, greaterThanCount);
+                //Determine starting points for each processor to copy elements <= pivot and > pivot
+                //if (uniqueId != 0)
+                //{
+                //    smallerThanCount = nSmallerEqual[uniqueId - 1];
+                //    greaterThanCount = nGreaterThan[uniqueId - 1];
+                //}
+                //else
+                //{
+                //    smallerThanCount = 0;
+                //    greaterThanCount = 0;
+                //}
+
 
                 // Using count variables, copy from temp array back to original array
                 for (int i = startIndex; i <= endIndex; i++)
@@ -160,8 +155,8 @@ namespace CS474_JSort
                     {
                         mLock.WaitOne();
                         _array[smallerThanCount] = temp[i];
-                        Console.WriteLine("ID: {0}, Smaller than pivot. Writing {1} to index {2} on array. i = {3}", uniqueId, temp[i], smallerThanCount, i);
                         mLock.ReleaseMutex();
+                        Console.WriteLine("ID: {0}. SMALLER THAN. i = {1}. end = {2}. smallerThanCount = {3}. greaterThanCount = {4}. Writing {5} to index {6}", uniqueId, i, endIndex, smallerThanCount, greaterThanCount, temp[i], smallerThanCount);
 
                         smallerThanCount = smallerThanCount + 1;
                     }
@@ -170,10 +165,11 @@ namespace CS474_JSort
                     {
                         mLock.WaitOne();
                         _array[(_size - 1) - greaterThanCount] = temp[i];
-                        Console.WriteLine("ID: {0}, Greater than pivot. Writing {1} to index {2} on array. End index: {3}, GreaterThan: {4}, i = {5} ", uniqueId, temp[i], (endIndex - greaterThanCount), endIndex, greaterThanCount, i);
+                        Console.WriteLine("ID: {0}. GREATER THAN. i = {1}. end = {2}. smallerThanCount = {3}. greaterThanCount = {4}. Writing {5} to index {6}", uniqueId, i, endIndex, smallerThanCount, greaterThanCount, temp[i], (_size - 1) - greaterThanCount);
+
+                        greaterThanCount = greaterThanCount + 1;
                         mLock.ReleaseMutex();
 
-                        greaterThanCount = greaterThanCount - 1;
                     }
                 }
 
@@ -182,13 +178,17 @@ namespace CS474_JSort
 
             Console.WriteLine("Sorted:");
             PrintArray();
+            CheckForDuplicates();
 
-            // Get median of startIndex, endIndex, and the middle index and use that to find pivot. 
-            int middle = (start + end) / 2;
-            int median = (start + end + middle) / 3;
-            int partitionIndex = _array[median];
+            return nSmallerEqual[_processorCount - 1];
+        }
 
-            return partitionIndex;
+        private static void CheckForDuplicates()
+        {
+            if (_array.Length != _array.Distinct().Count())
+            {
+                Console.WriteLine("Contains duplicates");
+            }
         }
 
         private static void PrintArray()
