@@ -113,31 +113,36 @@ namespace CS474_JSort
                 int smallerThanCount = 0;
                 int greaterThanCount = 0;
 
-                for (int i = 0; i <= uniqueId; i++)
-                {
-                    smallerThanCount += nSmallerEqual[i];      // calculate the offset of 1st smaller than pivot element 
-                    greaterThanCount += nGreaterThan[i];      // calculate offset of first greater than pivot element 
-                }
+                //for (int i = 0; i <= uniqueId; i++)
+                //{
+                //    smallerThanCount += nSmallerEqual[i];      // calculate the offset of 1st smaller than pivot element 
+                //    greaterThanCount += nGreaterThan[i];      // calculate offset of first greater than pivot element 
+                //    //Console.WriteLine("ID: {0}. Prefix sum calculation. i = {1}, smallerThanCount = {2}, greaterThanCount = {3}", uniqueId, i, smallerThanCount, greaterThanCount);
+                //}
 
 
                 ////Calculate prefix sums on arrays
-                //for (int k = 0; k <= Math.Ceiling(Math.Log(_processorCount)); k++)
-                //{
-                //    var whateverThisIs = uniqueId - Math.Pow(2, k);
-                //    if (whateverThisIs >= 0)
-                //    {
-                //        mLock.WaitOne();
-                //        nSmallerEqual[uniqueId] = nSmallerEqual[(int)(uniqueId - Math.Pow(2, k))] + nSmallerEqual[uniqueId];
-                //        nGreaterThan[uniqueId] = nGreaterThan[(int)(uniqueId - Math.Pow(2, k))] + nGreaterThan[uniqueId];
-                //        mLock.ReleaseMutex();
-                //    }
-                //}
+                for (int k = 0; k <= uniqueId; k++)
+                {
+                    int whateverThisIs = (int)(uniqueId - Math.Pow(2, k));
+                    if (whateverThisIs >= 0)
+                    {
+                        mLock.WaitOne();
+                        nSmallerEqual[uniqueId] = nSmallerEqual[whateverThisIs] + nSmallerEqual[uniqueId];
+                        nGreaterThan[uniqueId] = nGreaterThan[whateverThisIs] + nGreaterThan[uniqueId];
+                       // Console.WriteLine("ID: {0}. Prefix sum calculation. i = {1}, smallerThanCount = {2}, greaterThanCount = {3}", uniqueId, k, nSmallerEqual[uniqueId], nGreaterThan[uniqueId]);
+
+                        mLock.ReleaseMutex();
+                    }
+                }
 
                 ////Determine starting points for each processor to copy elements <= pivot and > pivot
                 if (uniqueId != 0)
                 {
-                    smallerThanCount = nSmallerEqual[uniqueId];
-                    greaterThanCount = nGreaterThan[uniqueId];
+                    smallerThanCount = nSmallerEqual[uniqueId - 1];
+                    greaterThanCount = nGreaterThan[uniqueId - 1];
+                    //Console.WriteLine("ID: {0}. New prefix sum values.smallerThanCount = {1}, greaterThanCount = {2}", uniqueId, smallerThanCount, greaterThanCount);
+
                 }
                 else
                 {
@@ -148,14 +153,14 @@ namespace CS474_JSort
                 Console.WriteLine("ID: {0}, Start: {1}, End: {2}, SmallerOrEqual: {3}, GreaterThan: {4}, SmallerThanCount: {5}, GreaterThanCount: {6}", uniqueId, startIndex, endIndex, nSmallerEqual[uniqueId], nGreaterThan[uniqueId], smallerThanCount, greaterThanCount);
 
                 // Using count variables, copy from temp array back to original array
-                for (int i = startIndex; i < endIndex; i++)
+                for (int i = startIndex; i <= endIndex; i++)
                 {
                     // Add from left side of array if smaller
                     if (temp[i] <= pivot)
                     {
                         mLock.WaitOne();
                         _array[smallerThanCount] = temp[i];
-                        Console.WriteLine("ID: {0}, Smaller than pivot. Writing {1} to index {2} on array", uniqueId, temp[i], smallerThanCount);
+                        Console.WriteLine("ID: {0}, Smaller than pivot. Writing {1} to index {2} on array. i = {3}", uniqueId, temp[i], smallerThanCount, i);
                         mLock.ReleaseMutex();
 
                         smallerThanCount = smallerThanCount + 1;
@@ -164,8 +169,8 @@ namespace CS474_JSort
                     else
                     {
                         mLock.WaitOne();
-                        _array[endIndex - greaterThanCount] = temp[i];
-                        Console.WriteLine("ID: {0}, Greater than pivot. Writing {1} to index {2} on array. End index: {3}, GreaterThan: {4} ", uniqueId, temp[i], (endIndex - greaterThanCount), endIndex, greaterThanCount);
+                        _array[(_size - 1) - greaterThanCount] = temp[i];
+                        Console.WriteLine("ID: {0}, Greater than pivot. Writing {1} to index {2} on array. End index: {3}, GreaterThan: {4}, i = {5} ", uniqueId, temp[i], (endIndex - greaterThanCount), endIndex, greaterThanCount, i);
                         mLock.ReleaseMutex();
 
                         greaterThanCount = greaterThanCount - 1;
