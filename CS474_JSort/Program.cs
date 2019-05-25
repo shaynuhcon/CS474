@@ -46,22 +46,24 @@ namespace CS474_JSort
          */
         private static int DoPartition(int start, int end)
         {
-            Mutex mLock = new Mutex();
-            
-            // Get size of partitioned array
             var size = end - start;
+            if (size == 0 || end < start) return 1;
+
+            Mutex mLock = new Mutex();
+            var subArray = new int[size];
+            Array.Copy(_array, start, subArray, 0, size);
 
             // Initialize temporary arrays
-            int[] temp = new int[size];
+            int[] temp = new int[subArray.Length];
 
-            for (int i = start; i < end; i++)
+            for (int i = 0; i < size; i++)
             {
-                temp[i] = _array[i];
+                temp[i] = subArray[i];
             }
 
             // Get pivot
-            int middle = (start + end) / 2;
-            int median = (start + end + middle) / 3;
+            int middle = (0 + size) / 2;
+            int median = (0 + size + middle) / 3;
             int pivot = temp[median];
 
             if (median == 1)
@@ -165,6 +167,10 @@ namespace CS474_JSort
                 smallerThanTotal += nSmallerEqual[i];      // calculate the offset of 1st smaller than pivot element 
             }
 
+            if (smallerThanTotal == 0) return 1;
+            {
+                
+            }
             return smallerThanTotal;
         }
 
