@@ -54,17 +54,15 @@ namespace CS474_JSort
             // Initialize temporary arrays
             int[] temp = new int[size];
 
-            int counter = 0;
             for (int i = start; i < end; i++)
             {
-                temp[counter] = _array[i];
-                counter++;
+                temp[i] = _array[i];
             }
 
             // Get pivot
             int middle = (start + end) / 2;
             int median = (start + end + middle) / 3;
-            int pivot = _array[median];
+            int pivot = temp[median];
 
             if (median == 1)
             {
