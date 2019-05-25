@@ -9,7 +9,7 @@ namespace CS474_JSort
     class Program
     {
         // Global processor count set to 4 for now to match example in Jie's paper
-        private static int _processorCount = 4;
+        private static int _processorCount = 2;
         private static int[] _array = new[] { 5, 17, 42, 3, 9, 22, 15, 26, 51, 19, 99, 32 };
 
         static void Main()
@@ -66,11 +66,10 @@ namespace CS474_JSort
             int median = (0 + size + middle) / 3;
             int pivot = temp[median];
 
-            if (median == 1)
+            if (median <= 1)
             {
                 return 1;
             }
-
             Console.WriteLine("Sorting indexes {0} through {1} on pivot {2}", start, end, pivot);
 
             int[] nSmallerEqual = new int[_processorCount];
@@ -129,7 +128,7 @@ namespace CS474_JSort
                 }
                 mLock.ReleaseMutex();
 
-                Console.WriteLine("ID: {0}. SmallerEqual: {1}. GreaterThan {2}", uniqueId, smallerThanCount, greaterThanCount);
+                Console.WriteLine("ID: {0}. Start: {1}. End: {2}. SmallerEqual: {3}. GreaterThan {4}", uniqueId, startIndex, endIndex, smallerThanCount, greaterThanCount);
 
                 // Using count variables, copy from temp array back to original array
                 for (int i = startIndex; i <= endIndex; i++)
@@ -168,9 +167,7 @@ namespace CS474_JSort
             }
 
             if (smallerThanTotal == 0) return 1;
-            {
-                
-            }
+
             return smallerThanTotal;
         }
 
