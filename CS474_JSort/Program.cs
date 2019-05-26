@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,49 +10,55 @@ namespace CS474_JSort
     class Program
     {
         // Global processor count set to 4 for now to match example in Jie's paper
-        private static int _processorCount = 2;
-        private static int[] _array = new[] { 5, 17, 42, 3, 9, 22, 15, 26, 51, 19, 99, 32 };
+        private static int _processorCount = 4;
 
         static void Main()
         {
+            int[] array = new[] { 5, 17, 42, 3, 9, 22, 15, 26, 51, 19, 99, 32 };
+
+
             // Get starting values 
             int startIndex = 0;
-            int endIndex = _array.Length;
+            int endIndex = array.Length;
             Console.WriteLine("Original array:");
-            PrintArray();
+            PrintArray(array);
 
-
-            DoSort(startIndex, endIndex);
+            DoSort(array, startIndex, endIndex);
+            Console.WriteLine("Done");
+            Console.ReadLine();
         }
         
         /*
          * Recursive method that checks when sorting/partitioning will be done 
          */
-        private static void DoSort(int startIndex, int endIndex)
+        private static void DoSort(int[] array, int startIndex, int endIndex)
         {
-            if (startIndex != 1)
+            if (endIndex - startIndex > 1)
             {
-                int partitionIndex = DoPartition(startIndex, endIndex);
+                int partitionIndex = DoPartition(array, startIndex, endIndex);
+
+                if (partitionIndex == 0) return;
+                if (endIndex - startIndex == partitionIndex) return;
 
                 if (partitionIndex > 1)
-                    DoSort(startIndex, partitionIndex);
+                    DoSort(array, startIndex, partitionIndex);
 
                 if (partitionIndex + 1 < endIndex)
-                    DoSort(partitionIndex, endIndex);
+                    DoSort(array, partitionIndex + 1, endIndex);
             }
         }
 
         /*
          * Method that partitions and sorts
          */
-        private static int DoPartition(int start, int end)
+        private static int DoPartition(int[] array, int start, int end)
         {
             var size = end - start;
             if (size == 0 || end < start) return 1;
 
             Mutex mLock = new Mutex();
             var subArray = new int[size];
-            Array.Copy(_array, start, subArray, 0, size);
+            Array.Copy(array, start, subArray, 0, size);
 
             // Initialize temporary arrays
             int[] temp = new int[subArray.Length];
@@ -66,53 +73,40 @@ namespace CS474_JSort
             int median = (0 + size + middle) / 3;
             int pivot = temp[median];
 
-            if (median <= 1)
-            {
-                return 1;
-            }
-            Console.WriteLine("Sorting indexes {0} through {1} on pivot {2}", start, end, pivot);
-
             int[] nSmallerEqual = new int[_processorCount];
             int[] nGreaterThan = new int[_processorCount];
 
             // Set chunk size
-            var chunk = size / _processorCount;
+            decimal decimalChunk = (decimal) size / (decimal) _processorCount;
+            var chunk = (int)Math.Ceiling(decimalChunk);
 
-            // Set thread safe variables for unique ID 
-            var queue = new ConcurrentQueue<int>();
-            for (int i = 0; i < _processorCount; i++)
+            Console.WriteLine("Sorting indexes {0} through {1} on pivot {2}", start, end, pivot);
+
+            //// Divide array into chunks
+            Parallel.For(0, _processorCount, id =>
             {
-                queue.Enqueue(i);
-            }
-
-            // Divide array into chunks
-            Parallel.For(0, _processorCount, j =>
-            {
-                // Unique ID variable used to identify each processor
-                int uniqueId;
-                queue.TryDequeue(out uniqueId);
-
                 // Starting and ending point of chunk
-                int startIndex = chunk * uniqueId; 
-                int endIndex = ((uniqueId + 1) * chunk) -1;
-
+                int startIndex = chunk * id;
+                int endIndex = chunk * (id + 1);
                 if (endIndex > size) endIndex = size;
 
-                // Counter variables initialized with above start/end variables
-                int lesser = startIndex;
-                int greater = endIndex;
-
                 // Check for less than or equal to and greater than pivot 
-                for (int i = startIndex; i <= endIndex; i++)
+                for (int i = startIndex; i < endIndex; i++)
                 {
-                    if (_array[i] <= pivot) lesser++;
-                    else greater--;
-                }
+                    if (subArray[i] <= pivot)
+                    {
+                        mLock.WaitOne();
+                        nSmallerEqual[id]++;
+                        mLock.ReleaseMutex();
 
-                mLock.WaitOne();
-                nSmallerEqual[uniqueId] = lesser - startIndex; // # elements smaller than pivot 
-                nGreaterThan[uniqueId] = endIndex - greater; // # elements greater than pivot 
-                mLock.ReleaseMutex();
+                    }
+                    else
+                    {
+                        mLock.WaitOne();
+                        nGreaterThan[id]++;
+                        mLock.ReleaseMutex();
+                    }
+                }
 
                 // These values hold total count for lesser than or greater than values
                 // Will be used for inserting values back to original array 
@@ -120,7 +114,7 @@ namespace CS474_JSort
                 int greaterThanCount = 0;
 
                 mLock.WaitOne();
-                for (int i = 0; i < uniqueId; i++)
+                for (int i = 0; i < id; i++)
                 {
 
                     smallerThanCount += nSmallerEqual[i];      // calculate the offset of 1st smaller than pivot element 
@@ -128,60 +122,68 @@ namespace CS474_JSort
                 }
                 mLock.ReleaseMutex();
 
-                Console.WriteLine("ID: {0}. Start: {1}. End: {2}. SmallerEqual: {3}. GreaterThan {4}", uniqueId, startIndex, endIndex, smallerThanCount, greaterThanCount);
+                Console.WriteLine("ID: {0}. Start: {1}. End: {2}. SmallerEqual: {3}. GreaterThan {4}", id, startIndex, endIndex, smallerThanCount, greaterThanCount);
 
                 // Using count variables, copy from temp array back to original array
-                for (int i = startIndex; i <= endIndex; i++)
+                for (int i = startIndex; i < endIndex; i++)
                 {
                     // Add from left side of array if smaller
                     if (temp[i] <= pivot)
                     {
                         mLock.WaitOne();
-                        _array[smallerThanCount] = temp[i];
-                        mLock.ReleaseMutex();
+                        subArray[smallerThanCount] = temp[i];
+                        //Console.WriteLine("ID: {0}. SMALLER THAN. i = {1}. end = {2}. smallerThanCount = {3}. greaterThanCount = {4}. Writing {5} to index {6}", id, i, endIndex, smallerThanCount, greaterThanCount, temp[i], smallerThanCount);
 
                         smallerThanCount = smallerThanCount + 1;
+
+                        mLock.ReleaseMutex();
+
                     }
                     // Add from right side of array if greater
                     else
                     {
                         mLock.WaitOne();
-                        _array[(size - 1) - greaterThanCount] = temp[i];
-                        mLock.ReleaseMutex();
+                        subArray[(size - 1) - greaterThanCount] = temp[i];
+                        //Console.WriteLine("ID: {0}. GREATER THAN. i = {1}. end = {2}. smallerThanCount = {3}. greaterThanCount = {4}. Writing {5} to index {6}", id, i, endIndex, smallerThanCount, greaterThanCount, temp[i], (size - 1) - greaterThanCount);
 
                         greaterThanCount = greaterThanCount + 1;
+
+                        mLock.ReleaseMutex();
+
                     }
                 }
-
-                queue.Enqueue(uniqueId);
             });
 
+            int subArrayCount = 0;
+            for (int i = start; i < end; i++)
+            {
+                array[i] = subArray[subArrayCount];
+                subArrayCount++;
+            }
             Console.WriteLine("Sorted:");
-            PrintArray();
-            CheckForDuplicates();
+            PrintArray(array);
+            CheckForDuplicates(array);
 
-            int smallerThanTotal = 0;
+            int partitionIndex = 0;
             for (int i = 0; i < _processorCount; i++)
             {
-                smallerThanTotal += nSmallerEqual[i];      // calculate the offset of 1st smaller than pivot element 
+                partitionIndex += nSmallerEqual[i];     
             }
 
-            if (smallerThanTotal == 0) return 1;
-
-            return smallerThanTotal;
+            return partitionIndex;
         }
 
-        private static void CheckForDuplicates()
+        private static void CheckForDuplicates(int[] array)
         {
-            if (_array.Length != _array.Distinct().Count())
+            if (array.Length != array.Distinct().Count())
             {
                 Console.WriteLine("Contains duplicates");
             }
         }
 
-        private static void PrintArray()
+        private static void PrintArray(int[] array)
         {
-            foreach (var item in _array)
+            foreach (var item in array)
             {
                 Console.Write(item + " ");
             }
@@ -189,18 +191,20 @@ namespace CS474_JSort
             Console.WriteLine();
         }
 
-        // Question 5: Fill array sequentially with random values
-        private static void FillArrayWithRandomValues()
+        //// Question 5: Fill array sequentially with random values
+        private static int[] FillArrayWithRandomValues(int[] array)
         {
-            _array = Enumerable.Range(0, 20).ToArray();
+            array = Enumerable.Range(0, 10).ToArray();
             var random = new Random();
-            for (var i = 0; i < _array.Length; i++)
+            for (var i = 0; i < array.Length; i++)
             {
-                int randomIndex = random.Next(_array.Length);
-                int temp = _array[randomIndex];
-                _array[randomIndex] = _array[i];
-                _array[i] = temp;
+                int randomIndex = random.Next(array.Length);
+                int temp = array[randomIndex];
+                array[randomIndex] = array[i];
+                array[i] = temp;
             }
+
+            return array;
         }
     }
 }
