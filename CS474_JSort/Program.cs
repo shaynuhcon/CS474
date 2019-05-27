@@ -15,7 +15,8 @@ namespace CS474_JSort
         static void Main()
         {
             int[] array = new[] { 5, 17, 42, 3, 9, 22, 15, 26, 51, 19, 99, 32 };
-            
+
+
             // Get starting values 
             int startIndex = 0;
             int endIndex = array.Length;
@@ -96,6 +97,7 @@ namespace CS474_JSort
             int median = (0 + size + middle) / 3;
             int pivot = temp[median];
 
+            Console.WriteLine("Sorting subarray {0} to {1} on pivot {2}", start, end, pivot);
             // Swap pivot with last index in both subarray and temp array 
             // to ensure we do not use same pivot too many times
             int placeholder;
@@ -113,68 +115,71 @@ namespace CS474_JSort
             decimal decimalChunk = (decimal) size / (decimal)processorCount;
             var chunk = (int)Math.Ceiling(decimalChunk);
             
+            Mutex mLock = new Mutex();
             Stopwatch.Start();
 
             // Sort chunked portions of array
             Parallel.For(0, processorCount, id =>
             {
                 // Starting and ending point of chunk
-                var startIndex = chunk * id;
-                var endIndex = chunk * (id + 1);
+                int startIndex = chunk * id;
+                int endIndex = chunk * (id + 1);
                 if (endIndex > size) endIndex = size;
 
                 // Check for less than or equal to and greater than pivot 
-                for (var i = startIndex; i < endIndex; i++)
+                for (int i = startIndex; i < endIndex; i++)
                 {
                     if (subArray[i] <= pivot)
                     {
-                        lock (Locker)
-                        {
-                            nSmallerEqual[id] = nSmallerEqual[id] + 1;
-                        }
+                        mLock.WaitOne();
+                        nSmallerEqual[id]++;
+                        mLock.ReleaseMutex();
+
                     }
                     else
                     {
-                        lock (Locker)
-                        {
-                            nGreaterThan[id] = nGreaterThan[id] + 1;
-                        }
-                    }              
+                        mLock.WaitOne();
+                        nGreaterThan[id]++;
+                        mLock.ReleaseMutex();
+                    }
                 }
 
                 // These values hold total count for lesser than or greater than values
                 // Will be used for inserting values back to original array 
-                var smallerThanCount = 0;
-                var greaterThanCount = 0;
+                int smallerThanCount = 0;
+                int greaterThanCount = 0;
 
-                for (var i = 0; i < id; i++)
+                mLock.WaitOne();
+                for (int i = 0; i < id; i++)
                 {
+
                     smallerThanCount += nSmallerEqual[i];
                     greaterThanCount += nGreaterThan[i];
                 }
+                mLock.ReleaseMutex();
 
                 // Using count variables, copy from temp array back to original array
-                for (var i = startIndex; i < endIndex; i++)
+                for (int i = startIndex; i < endIndex; i++)
                 {
                     // Add from left side of array if smaller
                     if (temp[i] <= pivot)
                     {
-                        lock (Locker)
-                        {
-                            subArray[smallerThanCount] = temp[i];
-                        }
-
+                        mLock.WaitOne();
+                        subArray[smallerThanCount] = temp[i];
                         smallerThanCount = smallerThanCount + 1;
+
+                        mLock.ReleaseMutex();
+
                     }
                     // Add from right side of array if greater
                     else
                     {
-                        lock (Locker)
-                        {
-                            subArray[size - 1 - greaterThanCount] = temp[i];
-                        }
-
+                        mLock.WaitOne();
+                        subArray[(size - 1) - greaterThanCount] = temp[i];
                         greaterThanCount = greaterThanCount + 1;
+
+                        mLock.ReleaseMutex();
+
                     }
                 }
             });
@@ -206,8 +211,10 @@ namespace CS474_JSort
             // All values are lesser than pivot so return index right below lesser than count
             if (lesserThan == size) lesserThan--;
 
+
             // Pass actual index in array and not index of subarray 
             int partitionIndex = Array.IndexOf(array, subArray[lesserThan]);
+
 
             return partitionIndex;
         }
@@ -242,7 +249,7 @@ namespace CS474_JSort
         //// Question 5: Fill array sequentially with random values
         private static int[] FillArrayWithRandomValues(int[] array)
         {
-            array = Enumerable.Range(0, 10).ToArray();
+            array = Enumerable.Range(0, 50).ToArray();
             var random = new Random();
             for (var i = 0; i < array.Length; i++)
             {
