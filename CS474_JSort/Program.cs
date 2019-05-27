@@ -10,6 +10,8 @@ namespace CS474_JSort
     {
         // Global processor count set to 4 for now to match example in Jie's paper
         private static int _processorCount = Environment.ProcessorCount;
+        private static readonly Stopwatch _stopwatch = new Stopwatch();
+        private static long _elapsedTime;
 
         static void Main()
         {
@@ -18,25 +20,19 @@ namespace CS474_JSort
             // Get starting values 
             int startIndex = 0;
             int endIndex = array.Length;
-
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
             
             DoSort(array, startIndex, endIndex);
 
-            stopwatch.Stop();
-            var elapsedTime = stopwatch.ElapsedMilliseconds;
-            stopwatch.Reset();
 
+            // Only output results if array is sorted (not timed)
             if (IsSorted(array))
             {
-                Console.WriteLine("Array sorted in parallel in {0} ms", elapsedTime);
+                Console.WriteLine("Sorted {0} elements in parallel in {1} ms", array.Length, _elapsedTime);
             }
             else
             {
                 Console.WriteLine("Array is not sorted");
             }
-            Console.ReadLine();
         }
         
         /*
@@ -58,32 +54,39 @@ namespace CS474_JSort
             }
         }
 
+        /*
+         * Determine how many processors to use based on size of array
+         */
         private static void Spawn(int size)
         {
-            switch (size)
+            if (size < Environment.ProcessorCount)
             {
-                case 1: case 2: case 3:
-                        _processorCount = 1;
-                        break;
-                default:
-                    _processorCount = 4;
-                    break;
-            }
+                _processorCount = size - 1;
 
+            }
+            else
+            {
+                _processorCount = Environment.ProcessorCount;
+            }
         }
+
         /*
-         * Method that partitions and sorts
+         * Method that sorts each subarray then returns index that array should be partitioned on
          */
         private static int DoPartition(int[] array, int start, int end)
         {
             var size = end - start;
+
+            // Spawn processors
             Spawn(size);
 
             Mutex mLock = new Mutex();
+
+            // Initialize subarray from original array that will be sorted 
             var subArray = new int[size];
             Array.Copy(array, start, subArray, 0, size);
 
-            // Initialize temporary arrays
+            // Initialize temp array 
             int[] temp = new int[subArray.Length];
 
             for (int i = 0; i < size; i++)
@@ -96,14 +99,16 @@ namespace CS474_JSort
             int median = (0 + size + middle) / 3;
             int pivot = temp[median];
 
-            // Swap pivot with last index in subarray 
-            int placeholder = 0;
+            // Swap pivot with last index in both subarray and temp array 
+            // to ensure we do not use same pivot too many times
+            int placeholder;
             placeholder = temp[size -1];
             temp[size -1] = temp[median];
             temp[median] = placeholder;
             subArray[size - 1] = subArray[median];
             subArray[median] = placeholder;
 
+            // Initialize arrays that will be used to calcualte prefix sums 
             int[] nSmallerEqual = new int[_processorCount];
             int[] nGreaterThan = new int[_processorCount];
 
@@ -111,7 +116,8 @@ namespace CS474_JSort
             decimal decimalChunk = (decimal) size / (decimal) _processorCount;
             var chunk = (int)Math.Ceiling(decimalChunk);
 
-            //// Divide array into chunks
+            _stopwatch.Start();
+            // Sort chunked portions of array
             Parallel.For(0, _processorCount, id =>
             {
                 // Starting and ending point of chunk
@@ -127,7 +133,6 @@ namespace CS474_JSort
                         mLock.WaitOne();
                         nSmallerEqual[id]++;
                         mLock.ReleaseMutex();
-
                     }
                     else
                     {
@@ -176,6 +181,9 @@ namespace CS474_JSort
                     }
                 }
             });
+            _stopwatch.Stop();
+            _elapsedTime = _stopwatch.ElapsedMilliseconds;
+
 
             int subArrayCount = 0;
             for (int i = start; i < end; i++)
