@@ -8,9 +8,8 @@ namespace CS474_JSort
 {
     class Program
     {
-        // Global processor count set to 4 for now to match example in Jie's paper
-        private static int _processorCount = Environment.ProcessorCount;
-        private static readonly Stopwatch _stopwatch = new Stopwatch();
+        static readonly object Locker = new object();
+        private static readonly Stopwatch Stopwatch = new Stopwatch();
         private static long _elapsedTime;
 
         static void Main()
@@ -33,6 +32,8 @@ namespace CS474_JSort
             {
                 Console.WriteLine("Array is not sorted");
             }
+
+            Console.ReadLine();
         }
         
         /*
@@ -57,17 +58,15 @@ namespace CS474_JSort
         /*
          * Determine how many processors to use based on size of array
          */
-        private static void Spawn(int size)
+        private static int Spawn(int size)
         {
-            if (size < Environment.ProcessorCount)
+            if (size < 4)
             {
-                _processorCount = size - 1;
+                return size - 1;
 
             }
-            else
-            {
-                _processorCount = Environment.ProcessorCount;
-            }
+
+            return 4;
         }
 
         /*
@@ -77,10 +76,8 @@ namespace CS474_JSort
         {
             var size = end - start;
 
-            // Spawn processors
-            Spawn(size);
-
-            Mutex mLock = new Mutex();
+            // Spawn processors based on size of array
+            var processorCount = Spawn(size);
 
             // Initialize subarray from original array that will be sorted 
             var subArray = new int[size];
@@ -109,82 +106,83 @@ namespace CS474_JSort
             subArray[median] = placeholder;
 
             // Initialize arrays that will be used to calcualte prefix sums 
-            int[] nSmallerEqual = new int[_processorCount];
-            int[] nGreaterThan = new int[_processorCount];
+            int[] nSmallerEqual = new int[processorCount];
+            int[] nGreaterThan = new int[processorCount];
 
             // Set chunk size
-            decimal decimalChunk = (decimal) size / (decimal) _processorCount;
+            decimal decimalChunk = (decimal) size / (decimal)processorCount;
             var chunk = (int)Math.Ceiling(decimalChunk);
+            
+            Stopwatch.Start();
 
-            _stopwatch.Start();
             // Sort chunked portions of array
-            Parallel.For(0, _processorCount, id =>
+            Parallel.For(0, processorCount, id =>
             {
                 // Starting and ending point of chunk
-                int startIndex = chunk * id;
-                int endIndex = chunk * (id + 1);
+                var startIndex = chunk * id;
+                var endIndex = chunk * (id + 1);
                 if (endIndex > size) endIndex = size;
 
                 // Check for less than or equal to and greater than pivot 
-                for (int i = startIndex; i < endIndex; i++)
+                for (var i = startIndex; i < endIndex; i++)
                 {
                     if (subArray[i] <= pivot)
                     {
-                        mLock.WaitOne();
-                        nSmallerEqual[id]++;
-                        mLock.ReleaseMutex();
+                        lock (Locker)
+                        {
+                            nSmallerEqual[id] = nSmallerEqual[id] + 1;
+                        }
                     }
                     else
                     {
-                        mLock.WaitOne();
-                        nGreaterThan[id]++;
-                        mLock.ReleaseMutex();
-                    }
+                        lock (Locker)
+                        {
+                            nGreaterThan[id] = nGreaterThan[id] + 1;
+                        }
+                    }              
                 }
 
                 // These values hold total count for lesser than or greater than values
                 // Will be used for inserting values back to original array 
-                int smallerThanCount = 0;
-                int greaterThanCount = 0;
+                var smallerThanCount = 0;
+                var greaterThanCount = 0;
 
-                mLock.WaitOne();
-                for (int i = 0; i < id; i++)
+                for (var i = 0; i < id; i++)
                 {
-
-                    smallerThanCount += nSmallerEqual[i];      
-                    greaterThanCount += nGreaterThan[i];      
+                    smallerThanCount += nSmallerEqual[i];
+                    greaterThanCount += nGreaterThan[i];
                 }
-                mLock.ReleaseMutex();
 
                 // Using count variables, copy from temp array back to original array
-                for (int i = startIndex; i < endIndex; i++)
+                for (var i = startIndex; i < endIndex; i++)
                 {
                     // Add from left side of array if smaller
                     if (temp[i] <= pivot)
                     {
-                        mLock.WaitOne();
-                        subArray[smallerThanCount] = temp[i];
+                        lock (Locker)
+                        {
+                            subArray[smallerThanCount] = temp[i];
+                        }
+
                         smallerThanCount = smallerThanCount + 1;
-
-                        mLock.ReleaseMutex();
-
                     }
                     // Add from right side of array if greater
                     else
                     {
-                        mLock.WaitOne();
-                        subArray[(size - 1) - greaterThanCount] = temp[i];
+                        lock (Locker)
+                        {
+                            subArray[size - 1 - greaterThanCount] = temp[i];
+                        }
+
                         greaterThanCount = greaterThanCount + 1;
-
-                        mLock.ReleaseMutex();
-
                     }
                 }
             });
-            _stopwatch.Stop();
-            _elapsedTime = _stopwatch.ElapsedMilliseconds;
 
+            Stopwatch.Stop();
+            _elapsedTime = Stopwatch.ElapsedMilliseconds;
 
+            // Copy subarray back to array
             int subArrayCount = 0;
             for (int i = start; i < end; i++)
             {
@@ -192,6 +190,7 @@ namespace CS474_JSort
                 subArrayCount++;
             }
 
+            // Determine next partition index using values lesser than pivot
             int lesserThan = 0;
             for (int i = 0; i < subArray.Length; i++)
             {
@@ -200,9 +199,14 @@ namespace CS474_JSort
                     lesserThan++;
                 }
             }
-
+            
+            // Don't need to partition subarray if size of subarray is less than # of lesser than values
             if (size < lesserThan) return 0;
+
+            // All values are lesser than pivot so return index right below lesser than count
             if (lesserThan == size) lesserThan--;
+
+            // Pass actual index in array and not index of subarray 
             int partitionIndex = Array.IndexOf(array, subArray[lesserThan]);
 
             return partitionIndex;
