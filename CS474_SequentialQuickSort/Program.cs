@@ -71,8 +71,7 @@ namespace CS474_SequentialQuickSort
 
         static void Main()
         {
-            int[] array = new int[10000];
-            FillArrayWithRandomValues(array);
+            int[] array = new[] { 5, 17, 42, 3, 9, 22, 15, 26, 51, 19, 99, 32 };
 
             var stopwatch = new Stopwatch();
             stopwatch.Start();

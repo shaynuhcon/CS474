@@ -8,15 +8,13 @@ namespace CS474_JSort
 {
     class Program
     {
-        static readonly object Locker = new object();
         private static readonly Stopwatch Stopwatch = new Stopwatch();
         private static long _elapsedTime;
 
         static void Main()
         {
             int[] array = new[] { 5, 17, 42, 3, 9, 22, 15, 26, 51, 19, 99, 32 };
-
-
+            
             // Get starting values 
             int startIndex = 0;
             int endIndex = array.Length;
@@ -61,13 +59,13 @@ namespace CS474_JSort
          */
         private static int Spawn(int size)
         {
-            if (size < 4)
+            if (size < Environment.ProcessorCount)
             {
                 return size - 1;
 
             }
 
-            return 4;
+            return Environment.ProcessorCount;
         }
 
         /*
