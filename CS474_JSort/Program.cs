@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,19 +20,23 @@ namespace CS474_JSort
             int startIndex = 0;
             int endIndex = array.Length;
             
+            Console.WriteLine("Original array:");
+            PrintArray(array);
+
             DoSort(array, startIndex, endIndex);
-
-
+            
             // Only output results if array is sorted (not timed)
             if (IsSorted(array))
             {
                 Console.WriteLine("Sorted {0} elements in parallel in {1} ms", array.Length, _elapsedTime);
+                PrintArray(array);
             }
             else
             {
                 Console.WriteLine("Array is not sorted");
             }
 
+            Console.WriteLine("Press any key to exit...");
             Console.ReadLine();
         }
         
@@ -42,7 +47,7 @@ namespace CS474_JSort
         {
             if (endIndex - startIndex > 1)
             {
-                int partitionIndex = DoPartition(array, startIndex, endIndex);
+                int partitionIndex = SortPartition(array, startIndex, endIndex);
 
                 if (partitionIndex < 1) return;
 
@@ -55,23 +60,9 @@ namespace CS474_JSort
         }
 
         /*
-         * Determine how many processors to use based on size of array
-         */
-        private static int Spawn(int size)
-        {
-            if (size < Environment.ProcessorCount)
-            {
-                return size - 1;
-
-            }
-
-            return Environment.ProcessorCount;
-        }
-
-        /*
          * Method that sorts each subarray then returns index that array should be partitioned on
          */
-        private static int DoPartition(int[] array, int start, int end)
+        private static int SortPartition(int[] array, int start, int end)
         {
             var size = end - start;
 
@@ -95,7 +86,8 @@ namespace CS474_JSort
             int median = (0 + size + middle) / 3;
             int pivot = temp[median];
 
-            Console.WriteLine("Sorting subarray {0} to {1} on pivot {2}", start, end, pivot);
+            Console.WriteLine("Sorting subarray {0} to {1} on pivot {2} using {3} processors.", start, end, pivot, processorCount);
+
             // Swap pivot with last index in both subarray and temp array 
             // to ensure we do not use same pivot too many times
             int placeholder;
@@ -105,7 +97,7 @@ namespace CS474_JSort
             subArray[size - 1] = subArray[median];
             subArray[median] = placeholder;
 
-            // Initialize arrays that will be used to calcualte prefix sums 
+            // Initialize arrays that will be used to calculate prefix sums 
             int[] nSmallerEqual = new int[processorCount];
             int[] nGreaterThan = new int[processorCount];
 
@@ -217,12 +209,19 @@ namespace CS474_JSort
             return partitionIndex;
         }
 
-        private static void CheckForDuplicates(int[] array)
+        /*
+         * Determine how many processors to use based on size of array
+         */
+        private static int Spawn(int size)
         {
-            if (array.Length != array.Distinct().Count())
+            var availableProcessers = Environment.ProcessorCount / 2;
+            if (size < availableProcessers)
             {
-                Console.WriteLine("Contains duplicates");
+                return size - 1;
+
             }
+
+            return availableProcessers;
         }
 
         private static void PrintArray(int[] array)
