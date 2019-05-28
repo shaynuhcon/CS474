@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -142,7 +141,6 @@ namespace CS474_JSort
                 mLock.WaitOne();
                 for (int i = 0; i < id; i++)
                 {
-
                     smallerThanCount += nSmallerEqual[i];
                     greaterThanCount += nGreaterThan[i];
                 }
@@ -156,20 +154,18 @@ namespace CS474_JSort
                     {
                         mLock.WaitOne();
                         subArray[smallerThanCount] = temp[i];
-                        smallerThanCount = smallerThanCount + 1;
-
                         mLock.ReleaseMutex();
 
+                        smallerThanCount = smallerThanCount + 1;
                     }
                     // Add from right side of array if greater
                     else
                     {
                         mLock.WaitOne();
                         subArray[(size - 1) - greaterThanCount] = temp[i];
-                        greaterThanCount = greaterThanCount + 1;
-
                         mLock.ReleaseMutex();
 
+                        greaterThanCount = greaterThanCount + 1;
                     }
                 }
             });
