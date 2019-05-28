@@ -96,7 +96,9 @@ namespace CS474_JSort
             subArray[size - 1] = subArray[median];
             subArray[median] = placeholder;
 
-            // Initialize arrays that will be used to calculate prefix sums 
+            // Initialize arrays that will be used to calculate prefix sums.
+            // Size set to processor count because each processor responsible for its
+            // own portion of subarray 
             int[] nSmallerEqual = new int[processorCount];
             int[] nGreaterThan = new int[processorCount];
 
